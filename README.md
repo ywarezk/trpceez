@@ -1,81 +1,139 @@
-# Turborepo starter
+# @trpceez
 
-This is an official starter Turborepo.
+`@trpceez` is a framework for creating, micro service oriented, class based, trpc api.
 
-## Using this example
+## What we believe
 
-Run the following command:
+Here is a list of our main belief system, that will help us understand what we want to include in this library.
 
-```sh
-npx create-turbo@latest
+### 1. class based approach
+
+we use class based approach and we use decorators to signal what is the task of each class.  
+This approach is heavily inspired by nestjs, angular, type-graphql, etc.
+
+So if we want to create a trpc router, it will be done with:
+
+```typescript
+import { Router } from '@trpceez/routers';
+
+@Router()
+export class HelloRouter {...}
 ```
 
-## What's inside?
+If we want to create a trpc query it will be done with:
 
-This Turborepo includes the following packages/apps:
+```typescript
+import { Router, Query, Input, Output } from '@trpceez/routers';
+import { z } from 'zod'
 
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `ui`: a stub React component library shared by both `web` and `docs` applications
-- `eslint-config-custom`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `tsconfig`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-```
-cd my-turborepo
-pnpm build
+@Router()
+export class HelloRouter {
+	@Query()
+	@Input(z.object({ ... }))
+	@Output(z.object({ ... }))
+	async hello({input, ctx}) {... }
+}
 ```
 
-### Develop
+### 2. Incremental adoption
 
-To develop all apps and packages, run the following command:
+We do not force the entire trpc api to be created using `@trpceez/*`.  
+If you already have a trpc api, and you simply want to create your next trpc router with a class based approach, then no need to change all your routers.  
+Simply create your class based router using `@trpceez` approach:
 
-```
-cd my-turborepo
-pnpm dev
-```
+```typescript
+import { Router } from '@trpceez/routers';
 
-### Remote Caching
-
-Turborepo can use a technique known as [Remote Caching](https://turbo.build/repo/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup), then enter the following commands:
-
-```
-cd my-turborepo
-npx turbo login
+@Router()
+export class HelloRouter {...}
 ```
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+you can then grab your `HelloRouter` and transform it to a regular `trpc` router and connect it to your app:
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
+```typescript
+import { HelloRouter } from './hello.router';
+import { toTrpcRouter } from '@trpceez/routers';
+import { t } from './trpc'; // @see https://trpc.io/docs/server/routers
+
+export const helloTrpcRouter = toTrpcRouter(t, HelloRouter);
+```
+
+You can then take your router and use regular trpc to join with the rest of your routers.
+
+```typescript
+import { router } from './trpc';
+import { helloTrpcRouter } from './hello-trpc.router'; 
+import {fooRouter, barRouter} from './my-other-routers';
+
+export const appRouter = router({
+  hello: helloTrpcRouter,
+	foo: fooRouter,
+	bar: barRouter
+});
+```
+
+### 3. Micro service approach
+
+We need to be ready to create not a single trpc api but many.  
+Software projects can become huge, with many developers, many websites, where each website might have many sections.  
+Therfor there should not be a single server with a single trpc api, rather we need to split our backends as well, creating many trpc api's which will be stitched for the client in a single gateway.
+
+```typescript
+import { Application } from '@trpceez/application';
+import { HelloRouter, FooRouter, BarRouter } from './my-routers';
+
+@Application({
+	routers: [
+		HelloRouter, FooRouter, BarRouter
+	]	
+})
+export class GreetingApplication {}
+```
+
+Our end result should not be a single `/trpc` url, rather we need to strive for:
 
 ```
-npx turbo link
+/trpc/greeting/hello.sayHello
+/trpc/common/someRouter.commonTask
 ```
 
-## Useful Links
+divide our trpc to sections.
 
-Learn more about the power of Turborepo:
+### 4. client should not care about the micro service approach
 
-- [Tasks](https://turbo.build/repo/docs/core-concepts/monorepos/running-tasks)
-- [Caching](https://turbo.build/repo/docs/core-concepts/caching)
-- [Remote Caching](https://turbo.build/repo/docs/core-concepts/remote-caching)
-- [Filtering](https://turbo.build/repo/docs/core-concepts/monorepos/filtering)
-- [Configuration Options](https://turbo.build/repo/docs/reference/configuration)
-- [CLI Usage](https://turbo.build/repo/docs/reference/command-line-reference)
+Client should not care about the micro service architecture in the backend.  
+He should have a typescript validated gateway for connecting to each on of the backends
+
+```typescript
+import { Federation } from '@trpceez/federation';
+import { NerdeezApplication, AcademeezApplication, CommonApplication} from './my-applications'
+
+@Federation({
+	applications: [
+		NerdeezApplication, AcademeezApplication, CommonApplication
+	]
+})
+export class Api {}
+```
+
+From here we can construct our entire trpc gateway:
+
+```typescript
+import type { Api } from './my-federation';
+import type { inferFederation } from '@trpceez/federation';
+
+export const trpc = createTRPCReact<inferFederation<Api>>();
+
+```
+
+the client can now using this single `trpc` to communicate with each one of the microservices, with full ide autocompletion as well as full typescript check:
+
+```typescript
+const { data } = trpc.nerdeez.hello.greetings.useQuery();
+```
+
+### 5. Bugs should be thrown as much as possible to typescript
+
+This goal is inherited from trpc goals, use typescript as best as we can to move the bugs, including the most repeated bugs that derive from client server communication, move these bugs to typescript compilation instead of runtime.
+
+## Class and Decorators
