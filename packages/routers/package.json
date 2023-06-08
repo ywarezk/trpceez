@@ -1,0 +1,5 @@
+{
+	"name": "@trpceez/routers",
+	"version": "0.0.1",
+	"description": "Class based utilities for creating trpc routers"
+}
