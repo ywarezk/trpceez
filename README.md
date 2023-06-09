@@ -66,9 +66,9 @@ import { helloTrpcRouter } from './hello-trpc.router';
 import {fooRouter, barRouter} from './my-other-routers';
 
 export const appRouter = router({
-  hello: helloTrpcRouter,
-	foo: fooRouter,
-	bar: barRouter
+    hello: helloTrpcRouter,
+    foo: fooRouter,
+    bar: barRouter
 });
 ```
 
